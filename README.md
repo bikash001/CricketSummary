@@ -1,2 +1,2 @@
 # CricketSummary
-A classical NLP system to summariza a cricket match.
+A classical NLP system to summarize a cricket match.
