@@ -9,22 +9,26 @@ class CustomDictionary(dict):
 class Batsman(CustomDictionary):
 	pass
 
+# name (string) = batsman name
+# status (string) = (not out, if out how? ("run out (Chris Woakes/CJ Anderson")))
+# run (int)
+# ball (int) = no. of ball played
+# four (int) = no. of 4's
+# six (int) = no. of 6's
+# sr (float) = strike rate
 def create_batsman(n, s, r, b, f, sx, sr):
 	return Batsman(name=n, status=s, run=int(r),
 		ball=int(b), four=int(f), six=int(sx),
 		sr=float(sr))
 
-class Match(CustomDictionary):
-	pass
-
 class Bowler():
 	def __init__(self, name, over):
-		self._name = name
-		self._data = []
-		self._overs = 0
-		self._wickets = 0
-		self._runs = 0
-		self._maidens = 0
+		self._name = name  	# name of bowler (string)
+		self._data = [] 	# contains raw data e.g. [W 1 1 W 1 1]
+		self._overs = 0 	# no. of overs
+		self._wickets = 0 	# no. of wickets
+		self._runs = 0 		# no. of runs 
+		self._maidens = 0	# no. of maiden overs
 		self.add_over(over)
 
 	def add_over(self, over):
@@ -32,6 +36,8 @@ class Bowler():
 		self._overs += 1
 		self._analyse(over)
 
+	# analyse each over
+	# i.e. calculate runs, wickets, maidens, etc.
 	def _analyse(self, over):
 		w, r = 0, 0
 		for x in over:
@@ -68,6 +74,7 @@ class Bowler():
 	def maidens(self):
 		return self._maidens
 
+# preprocess raw data like "McClenaghan: W 1 1 W 1 1"
 def create_or_load_bowler(inning, info):
 	name, data = info.split(':')
 	name = name.strip()
@@ -78,12 +85,27 @@ def create_or_load_bowler(inning, info):
 		inning.bowler_info[name] = Bowler(name, data)
 	inning.bowlers.append(name)
 
+# Innings class
+# batsman (list contains Batsman object)
+# bowlers (list contains bowlers name in the order of bowling)
+# bowler_info (dictionary contains bowler_name as key and Bowler object as value)
+# run (int) = total runs in the inning
+# wicket (int) = total wicket in the inning
 class Innings(CustomDictionary):
 	pass
 
 def create_innings():
 	return (Innings(batsmans=[], bowlers=[], bowler_info={}, run=None, wicket=None), 
 			Innings(batsmans=[], bowlers=[], bowler_info={}, run=None, wicket=None))
+
+# Match class
+# day (string) = day of week e.g. Monday
+# date (string) = complete date e.g. 12th Jan, 2018
+# venue (string)
+# teams (tuple of string) = name of teams
+# toss (tuple of int) = (a, b) where a is the index in teams which won toss, b is 0 if batting, 1 if fielding
+class Match(CustomDictionary):
+	pass
 
 def create_match():
 	return Match(day='', date="", venue="",
