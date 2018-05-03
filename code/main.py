@@ -1,4 +1,8 @@
 import sys
+import re
+import inflect
+
+inflect_engine = inflect.engine()
 
 class CustomDictionary(dict):
 	"""dot.notation access to dictionary attributes"""
@@ -17,7 +21,8 @@ class Batsman(CustomDictionary):
 # six (int) = no. of 6's
 # sr (float) = strike rate
 def create_batsman(n, s, r, b, f, sx, sr):
-	return Batsman(name=n, status=s, run=int(r),
+	data = re.findall(r'[\w ]+', n)
+	return Batsman(name=data[0].strip(),  status=s, run=int(r),
 		ball=int(b), four=int(f), six=int(sx),
 		sr=float(sr))
 
@@ -84,6 +89,7 @@ def create_or_load_bowler(inning, info):
 	else:
 		inning.bowler_info[name] = Bowler(name, data)
 	inning.bowlers.append(name)
+	inning.overs.append(data)
 
 # Innings class
 # batsman (list contains Batsman object)
@@ -95,8 +101,8 @@ class Innings(CustomDictionary):
 	pass
 
 def create_innings():
-	return (Innings(batsmans=[], bowlers=[], bowler_info={}, run=None, wicket=None), 
-			Innings(batsmans=[], bowlers=[], bowler_info={}, run=None, wicket=None))
+	return (Innings(batsmans=[], overs=[], batsman_info={}, bowlers=[], bowler_info={}, run=None, wicket=None, over_details={}, team=""), 
+			Innings(batsmans=[], overs=[], batsman_info={}, bowlers=[], bowler_info={}, run=None, wicket=None, over_details={}, team=""))
 
 # Match class
 # day (string) = day of week e.g. Monday
@@ -154,12 +160,13 @@ def parse_input(file):
 		if label != 'Winner:':
 			raise ValueError('Label should be %s but got %s' %('Winner:', label))
 		data = fp.readline().strip()
-		print data
+		# print data
 		match.winner = 0 if match.teams[0]==data else 1
 		# print match.winner, data
 		
 		# First Inning
 		inning = match.innings[0]
+		inning.team = match.toss[0] if match.toss[1] == 0 else 1 if match.toss[0] == 0 else 0
 		label = fp.readline().strip()
 		if label != 'Batting:':
 			raise ValueError('Label should be %s but got %s' %('Batting: (first)', label))
@@ -172,14 +179,21 @@ def parse_input(file):
 			count += 1
 			if count > 11:
 				raise ValueError('Label should be %s but got %s' %('Wickets: (first)', data))
-			inning.batsmans.append(
-					create_batsman(*map(str.strip, data.split(',')))
-				)
+			bm = create_batsman(*map(str.strip, data.split(',')))
+			inning.batsman_info[bm.name] = bm
+			inning.batsmans.append(bm.name)
 			data = fp.readline().strip()
 
 		# wickets
 		label = 'Wickets:'
-		data = fp.readline().strip()
+		data = fp.readline().strip().split('),')
+		for x in data:
+			y = re.findall(r"[\w\d \.-]+", x) # y = ['0-1 ', 'Suryakumar Yadav', ' 0.1']
+			ovr = int(float(y[2].strip()))+1
+			if not ovr in inning.over_details:
+				inning.over_details[ovr] = [y[1].strip()]
+			else:
+				inning.over_details[ovr].append(y[1].strip())	
 		# print data
 
 		# Bowling
@@ -192,6 +206,7 @@ def parse_input(file):
 
 		# second inning
 		inning = match.innings[1]
+		inning.team = 0 if match.innings[0].team == 1 else 1
 		label = fp.readline().strip()
 		if label != 'Batting:':
 			raise ValueError('Label should be %s but got %s' %('Batting: (second)', label))
@@ -203,15 +218,21 @@ def parse_input(file):
 			count += 1
 			if count > 11:
 				raise ValueError('Label should be %s but got %s' %('Wickets: (first)', data))
-			inning.batsmans.append(
-					create_batsman(*map(str.strip, data.split(',')))
-				)
+			bm = create_batsman(*map(str.strip, data.split(',')))
+			inning.batsman_info[bm.name] = bm
+			inning.batsmans.append(bm.name)
 			data = fp.readline().strip()
 
 		# wickets
 		label = 'Wickets:'
-		data = fp.readline().strip()
-		
+		data = fp.readline().strip().split('),')
+		for x in data:
+			y = re.findall(r"[\w\d \.-]+", x) # y = ['0-1 ', 'Suryakumar Yadav', ' 0.1']
+			ovr = int(float(y[2].strip()))+1
+			if not ovr in inning.over_details:
+				inning.over_details[ovr] = [y[1].strip()]
+			else:
+				inning.over_details[ovr].append(y[1].strip())	
 
 		# Bowling
 		label = fp.readline().strip()
@@ -230,7 +251,7 @@ def count_run_and_wicket(inning):
 		return inning.run, inning.wicket
 	
 	total_run = 0
-	for batsman in inning.batsmans:
+	for name, batsman in inning.batsman_info.items():
 		total_run += batsman.run
 
 	total_wicket = 0
@@ -241,10 +262,8 @@ def count_run_and_wicket(inning):
 	inning.wicket =  total_wicket
 	return total_run, total_wicket
 
-def main():
-	summary = []
-	match = parse_input(sys.argv[1])
-
+def winner(match, summary):
+	# return
 	# first batting team won (batting = 0)
 	if ((match.toss[1] == 0 and  match.toss[0] == match.winner) or 
 			(match.toss[1] == 1 and match.toss[0] != match.winner)):
@@ -255,9 +274,222 @@ def main():
 		summary.append("{} beat {} by {} wickets at {} on {}.".format(
 			match.teams[match.winner], match.teams[0 if match.winner==1 else 1],
 			(11-match.innings[1].wicket),
-			, match.venue, match.day))
+			match.venue, match.day))
 	
-	print summary[0]
+	# print summary[0]
 	
+def six_four_threshold():
+	return 3
+
+def run_threshold():
+	return 20
+
+def calculate_inning_info(inning):
+	overs = []
+	b1 = inning.batsmans[0]
+	b2 = inning.batsmans[1]
+	count = 0
+	total_runs = 0
+	prev_run = 0
+
+	for y, over in zip(inning.bowlers, inning.overs):
+		while count < len(inning.batsmans) and inning.batsman_info[inning.batsmans[count]].status == 'not out':
+			count += 1
+
+		w, r = 0, 0
+		pp = []
+		pr = []
+		for x in over:
+			if len(x) == 1:
+				if x == 'W':
+					w += 1
+					pp.append('%s,%s' %(b1, b2))
+					pr.append(total_runs + r - prev_run)
+					prev_run = total_runs + r
+					if b1 == inning.batsmans[count]:
+						if count+1 < len(inning.batsmans)
+							b1 == inning.batsmans[count+1]
+					else:
+						if count+1 < len(inning.batsmans):
+							b2 = inning.batsmans[count+1]
+				else:
+					r += int(x)
+			else:
+				cnt = 0
+				if x[0].isdigit():
+					cnt = int(x[0])
+					x = x[1:]
+				if x == 'Wd':
+					r += cnt if cnt>0 else 1
+				elif x == 'W':
+					w += 1
+					pp.append('%s,%s' %(b1, b2))
+					pr.append(total_runs + r - prev_run)
+					prev_run = total_runs + r
+					if b1 == inning.batsmans[count]:
+						if count+1 < len(inning.batsmans)
+							b1 == inning.batsmans[count+1]
+					else:
+						if count+1 < len(inning.batsmans):
+							b2 = inning.batsmans[count+1]
+				else:
+					r += cnt
+		total_runs += r
+		overs.append({'run': r, 'wicket': w, 'partners':pp, 'prun': pr})
+	return overs
+
+def schemas(match, summary):
+	# start --> winner losing_team_batting winning_team_batting
+	# winner (report who won and by how much)
+	# losing_team_batting --> batsman_formance batsman_out_by_bowler
+	winner(match, summary)
+	if match.winner == match.innings[0].team:
+		inning = match.innings[1]
+	else:
+		inning = match.innings[0]
+
+	over_wise_status = calculate_inning_info(inning)
+	not_out_players = [obj	for _, obj in inning.batsman_info.items() if obj.status == 'not out']
+
+	for i in range(1, 21):
+		if i in inning.over_details:
+			for player in inning.over_details[i]:
+				batsman = inning.batsman_info[player]
+				if batsman.run < run_threshold():
+					continue
+				summary.append('{} scored {} run.'.format(player, batsman.run))
+				if batsman.six + batsman.four >= six_four_threshold():
+					sentence = '{} hit'.format(player)
+					if batsman.six > 0 and batsman.four > 0:
+						sentence += ' {} six and {} four.'.format(batsman.six, batsman.four)
+					elif batsman.six > 0:
+						sentence += ' {} sixes.'.format(batsman.six)
+					else:
+						sentence += ' {} fours.'.format(batsman.four)
+					summary.append(sentence)
+				if batsman.status[0] == 'b':
+					summary.append('{} was clean bowled by {}.'.format(player, inning.bowlers[i]))
+				elif batsman.status[0] == 'c':
+					summary.append('{} was caught by {}.'.format(player, re.findall(r'[\w(][\w ()]+\w(?= +b )', batsman.status[1:])[0]))
+				elif batsman.status[:2] == 'st':
+					summary.append('{} was stumped by {}.'.format(player, re.findall(r'[\w(][\w ()]+\w(?= +b )', batsman.status[2:])[0]))
+				elif 'run out' in batsman.status:
+					summary.append('{} got run out.'.format(player))
+
+	for player in not_out_players:
+		if player.run >= 50:
+			summary.append('{} remained unbeaten on {}.'.format(player.name, player.run))
+			sentence = 'He hit'
+			if player.six == 1:
+				sentence = 'He smacked a six'
+				if player.four == 1:
+					sentence += ' and a four'
+				elif player.four > 1:
+					sentence += ' and %s fours' %(inflect_engine.number_to_words(player.four), player.ball)
+				sentence += ' in %d balls.' %(player.ball)
+				summary.append(sentence)
+			elif player.six > 1:
+				sentence += ' %s sixes' %(inflect_engine.number_to_words(player.six))
+				if player.four == 1:
+					sentence += ' and a four'
+				elif player.four > 1:
+					sentence += ' and %s fours' %(inflect_engine.number_to_words(player.four))
+				sentence += ' in %d balls.' %(player.ball)
+				summary.append(sentence)
+			else:
+				if player.four > 1:
+					sentence += ' %s fours in %d balls.' %(inflect_engine.number_to_words(player.four), player.ball)
+					summary.append(sentence)
+			continue
+		else:
+			summary.append('{} scored {} run.'.format(player.name, player.run))
+		batsman = player
+		if batsman.six + batsman.four >= six_four_threshold():
+			sentence = '{} hit'.format(player.name)
+			if batsman.six > 0 and batsman.four > 0:
+				sentence += ' {} six and {} four.'.format(batsman.six, batsman.four)
+			elif batsman.six > 0:
+				sentence += ' {} sixes.'.format(batsman.six)
+			else:
+				sentence += ' {} fours.'.format(batsman.four)
+			summary.append(sentence)
+		
+	summary.append('\t')
+
+	if match.winner == match.innings[0].team:
+		inning = match.innings[0]
+	else:
+		inning = match.innings[1]
+
+	over_wise_status = calculate_inning_info(inning)
+	not_out_players = [obj	for _, obj in inning.batsman_info.items() if obj.status == 'not out']
+
+	for i in range(1, 21):
+		if i in inning.over_details:
+			for player in inning.over_details[i]:
+				batsman = inning.batsman_info[player]
+				if batsman.run < run_threshold():
+					continue
+				summary.append('{} scored {} run.'.format(player, batsman.run))
+				if batsman.six + batsman.four >= six_four_threshold():
+					sentence = '{} hit'.format(player)
+					if batsman.six > 0 and batsman.four > 0:
+						sentence += ' {} six and {} four.'.format(batsman.six, batsman.four)
+					elif batsman.six > 0:
+						sentence += ' {} sixes.'.format(batsman.six)
+					else:
+						sentence += ' {} fours.'.format(batsman.four)
+					summary.append(sentence)
+				if batsman.status[0] == 'b':
+					summary.append('{} was clean bowled by {}.'.format(player, inning.bowlers[i]))
+				elif batsman.status[0] == 'c':
+					summary.append('{} was caught by {}.'.format(player, re.findall(r'[\w(][\w ()]+\w(?= +b )', batsman.status[1:])[0]))
+				elif batsman.status[:2] == 'st':
+					summary.append('{} was stumped by {}.'.format(player, re.findall(r'[\w(][\w ()]+\w(?= +b )', batsman.status[2:])[0]))
+				elif 'run out' in batsman.status:
+					summary.append('{} got run out.'.format(player))
+
+	for player in not_out_players:
+		if player.run >= 50:
+			summary.append('{} remained unbeaten on {}.'.format(player.name, player.run))
+			sentence = 'He hit'
+			if player.six == 1:
+				sentence = 'He smacked a six'
+				if player.four == 1:
+					sentence += ' and a four'
+				elif player.four > 1:
+					sentence += ' and %s fours' %(inflect_engine.number_to_words(player.four), player.ball)
+				sentence += ' in %d balls.' %(player.ball)
+				summary.append(sentence)
+			elif player.six > 1:
+				sentence += ' %s sixes' %(inflect_engine.number_to_words(player.six))
+				if player.four == 1:
+					sentence += ' and a four'
+				elif player.four > 1:
+					sentence += ' and %s fours' %(inflect_engine.number_to_words(player.four))
+				sentence += ' in %d balls.' %(player.ball)
+				summary.append(sentence)
+			else:
+				if player.four > 1:
+					sentence += ' %s fours in %d balls.' %(inflect_engine.number_to_words(player.four), player.ball)
+					summary.append(sentence)
+			continue
+		else:
+			summary.append('{} scored {} run.'.format(player.name, player.run))
+		batsman = player
+		if batsman.six + batsman.four >= six_four_threshold():
+			sentence = '{} hit'.format(player.name)
+			if batsman.six > 0 and batsman.four > 0:
+				sentence += ' {} six and {} four.'.format(batsman.six, batsman.four)
+			elif batsman.six > 0:
+				sentence += ' {} sixes.'.format(batsman.six)
+			else:
+				sentence += ' {} fours.'.format(batsman.four)
+			summary.append(sentence)
+
+
 if __name__ == '__main__':
-	main()
+	summary = []
+	match = parse_input(sys.argv[1])
+	schemas(match, summary)
+	print '\n'.join(summary)
